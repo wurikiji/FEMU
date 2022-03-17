@@ -2467,7 +2467,9 @@ static void kvm_msr_buf_reset(X86CPU *cpu)
     memset(cpu->kvm_msr_buf, 0, MSR_BUF_SIZE);
 }
 
-static void kvm_msr_entry_add(X86CPU *cpu, uint32_t index, uint64_t value)
+#define kvm_msr_entry_add(args...) kvm_msr_entry_add_v2(args, __func__)
+
+static void kvm_msr_entry_add_v2(X86CPU *cpu, uint32_t index, uint64_t value, const char *caller)
 {
     struct kvm_msrs *msrs = cpu->kvm_msr_buf;
     void *limit = ((void *)msrs) + MSR_BUF_SIZE;
@@ -2479,6 +2481,7 @@ static void kvm_msr_entry_add(X86CPU *cpu, uint32_t index, uint64_t value)
     entry->reserved = 0;
     entry->data = value;
     msrs->nmsrs++;
+    DPRINTF("Add msrs from %s\n", caller);
 }
 
 static int kvm_put_one_msr(X86CPU *cpu, int index, uint64_t value)
@@ -2538,140 +2541,144 @@ static int kvm_put_msr_feature_control(X86CPU *cpu)
     assert(ret == 1);
     return 0;
 }
+// begin WURIKIJI
+// FOR RUNNING QEMU ON VM WARE 
 
-static uint64_t make_vmx_msr_value(uint32_t index, uint32_t features)
-{
-    uint32_t default1, can_be_one, can_be_zero;
-    uint32_t must_be_one;
-
-    switch (index) {
-    case MSR_IA32_VMX_TRUE_PINBASED_CTLS:
-        default1 = 0x00000016;
-        break;
-    case MSR_IA32_VMX_TRUE_PROCBASED_CTLS:
-        default1 = 0x0401e172;
-        break;
-    case MSR_IA32_VMX_TRUE_ENTRY_CTLS:
-        default1 = 0x000011ff;
-        break;
-    case MSR_IA32_VMX_TRUE_EXIT_CTLS:
-        default1 = 0x00036dff;
-        break;
-    case MSR_IA32_VMX_PROCBASED_CTLS2:
-        default1 = 0;
-        break;
-    default:
-        abort();
-    }
-
-    /* If a feature bit is set, the control can be either set or clear.
-     * Otherwise the value is limited to either 0 or 1 by default1.
-     */
-    can_be_one = features | default1;
-    can_be_zero = features | ~default1;
-    must_be_one = ~can_be_zero;
-
-    /*
-     * Bit 0:31 -> 0 if the control bit can be zero (i.e. 1 if it must be one).
-     * Bit 32:63 -> 1 if the control bit can be one.
-     */
-    return must_be_one | (((uint64_t)can_be_one) << 32);
-}
+//static uint64_t make_vmx_msr_value(uint32_t index, uint32_t features)
+//{
+//    uint32_t default1, can_be_one, can_be_zero;
+//    uint32_t must_be_one;
+//
+//    switch (index) {
+//    case MSR_IA32_VMX_TRUE_PINBASED_CTLS:
+//        default1 = 0x00000016;
+//        break;
+//    case MSR_IA32_VMX_TRUE_PROCBASED_CTLS:
+//        default1 = 0x0401e172;
+//        break;
+//    case MSR_IA32_VMX_TRUE_ENTRY_CTLS:
+//        default1 = 0x000011ff;
+//        break;
+//    case MSR_IA32_VMX_TRUE_EXIT_CTLS:
+//        default1 = 0x00036dff;
+//        break;
+//    case MSR_IA32_VMX_PROCBASED_CTLS2:
+//        default1 = 0;
+//        break;
+//    default:
+//        abort();
+//    }
+//
+//    /* If a feature bit is set, the control can be either set or clear.
+//     * Otherwise the value is limited to either 0 or 1 by default1.
+//     */
+//    can_be_one = features | default1;
+//    can_be_zero = features | ~default1;
+//    must_be_one = ~can_be_zero;
+//
+//    /*
+//     * Bit 0:31 -> 0 if the control bit can be zero (i.e. 1 if it must be one).
+//     * Bit 32:63 -> 1 if the control bit can be one.
+//     */
+//    return must_be_one | (((uint64_t)can_be_one) << 32);
+//}
 
 #define VMCS12_MAX_FIELD_INDEX (0x17)
 
-static void kvm_msr_entry_add_vmx(X86CPU *cpu, FeatureWordArray f)
-{
-    uint64_t kvm_vmx_basic =
-        kvm_arch_get_supported_msr_feature(kvm_state,
-                                           MSR_IA32_VMX_BASIC);
+//static void kvm_msr_entry_add_vmx(X86CPU *cpu, FeatureWordArray f)
+//{
+//    uint64_t kvm_vmx_basic =
+//        kvm_arch_get_supported_msr_feature(kvm_state,
+//                                           MSR_IA32_VMX_BASIC);
+//
+//    if (!kvm_vmx_basic) {
+//        /* If the kernel doesn't support VMX feature (kvm_intel.nested=0),
+//         * then kvm_vmx_basic will be 0 and KVM_SET_MSR will fail.
+//         */
+//        return;
+//    }
+//
+//    uint64_t kvm_vmx_misc =
+//        kvm_arch_get_supported_msr_feature(kvm_state,
+//                                           MSR_IA32_VMX_MISC);
+//    uint64_t kvm_vmx_ept_vpid =
+//        kvm_arch_get_supported_msr_feature(kvm_state,
+//                                           MSR_IA32_VMX_EPT_VPID_CAP);
+//
+//    /*
+//     * If the guest is 64-bit, a value of 1 is allowed for the host address
+//     * space size vmexit control.
+//     */
+//    uint64_t fixed_vmx_exit = f[FEAT_8000_0001_EDX] & CPUID_EXT2_LM
+//        ? (uint64_t)VMX_VM_EXIT_HOST_ADDR_SPACE_SIZE << 32 : 0;
+//
+//    /*
+//     * Bits 0-30, 32-44 and 50-53 come from the host.  KVM should
+//     * not change them for backwards compatibility.
+//     */
+//    uint64_t fixed_vmx_basic = kvm_vmx_basic &
+//        (MSR_VMX_BASIC_VMCS_REVISION_MASK |
+//         MSR_VMX_BASIC_VMXON_REGION_SIZE_MASK |
+//         MSR_VMX_BASIC_VMCS_MEM_TYPE_MASK);
+//
+//    /*
+//     * Same for bits 0-4 and 25-27.  Bits 16-24 (CR3 target count) can
+//     * change in the future but are always zero for now, clear them to be
+//     * future proof.  Bits 32-63 in theory could change, though KVM does
+//     * not support dual-monitor treatment and probably never will; mask
+//     * them out as well.
+//     */
+//    uint64_t fixed_vmx_misc = kvm_vmx_misc &
+//        (MSR_VMX_MISC_PREEMPTION_TIMER_SHIFT_MASK |
+//         MSR_VMX_MISC_MAX_MSR_LIST_SIZE_MASK);
+//
+//    /*
+//     * EPT memory types should not change either, so we do not bother
+//     * adding features for them.
+//     */
+//    uint64_t fixed_vmx_ept_mask =
+//            (f[FEAT_VMX_SECONDARY_CTLS] & VMX_SECONDARY_EXEC_ENABLE_EPT ?
+//             MSR_VMX_EPT_UC | MSR_VMX_EPT_WB : 0);
+//    uint64_t fixed_vmx_ept_vpid = kvm_vmx_ept_vpid & fixed_vmx_ept_mask;
+//
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_TRUE_PROCBASED_CTLS,
+//                      make_vmx_msr_value(MSR_IA32_VMX_TRUE_PROCBASED_CTLS,
+//                                         f[FEAT_VMX_PROCBASED_CTLS]));
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_TRUE_PINBASED_CTLS,
+//                      make_vmx_msr_value(MSR_IA32_VMX_TRUE_PINBASED_CTLS,
+//                                         f[FEAT_VMX_PINBASED_CTLS]));
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_TRUE_EXIT_CTLS,
+//                      make_vmx_msr_value(MSR_IA32_VMX_TRUE_EXIT_CTLS,
+//                                         f[FEAT_VMX_EXIT_CTLS]) | fixed_vmx_exit);
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_TRUE_ENTRY_CTLS,
+//                      make_vmx_msr_value(MSR_IA32_VMX_TRUE_ENTRY_CTLS,
+//                                         f[FEAT_VMX_ENTRY_CTLS]));
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_PROCBASED_CTLS2,
+//                      make_vmx_msr_value(MSR_IA32_VMX_PROCBASED_CTLS2,
+//                                         f[FEAT_VMX_SECONDARY_CTLS]));
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_EPT_VPID_CAP,
+//                      f[FEAT_VMX_EPT_VPID_CAPS] | fixed_vmx_ept_vpid);
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_BASIC,
+//                      f[FEAT_VMX_BASIC] | fixed_vmx_basic);
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_MISC,
+//                      f[FEAT_VMX_MISC] | fixed_vmx_misc);
+//    if (has_msr_vmx_vmfunc) {
+//        kvm_msr_entry_add(cpu, MSR_IA32_VMX_VMFUNC, f[FEAT_VMX_VMFUNC]);
+//    }
+//
+//    /*
+//     * Just to be safe, write these with constant values.  The CRn_FIXED1
+//     * MSRs are generated by KVM based on the vCPU's CPUID.
+//     */
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_CR0_FIXED0,
+//                      CR0_PE_MASK | CR0_PG_MASK | CR0_NE_MASK);
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_CR4_FIXED0,
+//                      CR4_VMXE_MASK);
+//    kvm_msr_entry_add(cpu, MSR_IA32_VMX_VMCS_ENUM,
+//                      VMCS12_MAX_FIELD_INDEX << 1);
+//}
 
-    if (!kvm_vmx_basic) {
-        /* If the kernel doesn't support VMX feature (kvm_intel.nested=0),
-         * then kvm_vmx_basic will be 0 and KVM_SET_MSR will fail.
-         */
-        return;
-    }
-
-    uint64_t kvm_vmx_misc =
-        kvm_arch_get_supported_msr_feature(kvm_state,
-                                           MSR_IA32_VMX_MISC);
-    uint64_t kvm_vmx_ept_vpid =
-        kvm_arch_get_supported_msr_feature(kvm_state,
-                                           MSR_IA32_VMX_EPT_VPID_CAP);
-
-    /*
-     * If the guest is 64-bit, a value of 1 is allowed for the host address
-     * space size vmexit control.
-     */
-    uint64_t fixed_vmx_exit = f[FEAT_8000_0001_EDX] & CPUID_EXT2_LM
-        ? (uint64_t)VMX_VM_EXIT_HOST_ADDR_SPACE_SIZE << 32 : 0;
-
-    /*
-     * Bits 0-30, 32-44 and 50-53 come from the host.  KVM should
-     * not change them for backwards compatibility.
-     */
-    uint64_t fixed_vmx_basic = kvm_vmx_basic &
-        (MSR_VMX_BASIC_VMCS_REVISION_MASK |
-         MSR_VMX_BASIC_VMXON_REGION_SIZE_MASK |
-         MSR_VMX_BASIC_VMCS_MEM_TYPE_MASK);
-
-    /*
-     * Same for bits 0-4 and 25-27.  Bits 16-24 (CR3 target count) can
-     * change in the future but are always zero for now, clear them to be
-     * future proof.  Bits 32-63 in theory could change, though KVM does
-     * not support dual-monitor treatment and probably never will; mask
-     * them out as well.
-     */
-    uint64_t fixed_vmx_misc = kvm_vmx_misc &
-        (MSR_VMX_MISC_PREEMPTION_TIMER_SHIFT_MASK |
-         MSR_VMX_MISC_MAX_MSR_LIST_SIZE_MASK);
-
-    /*
-     * EPT memory types should not change either, so we do not bother
-     * adding features for them.
-     */
-    uint64_t fixed_vmx_ept_mask =
-            (f[FEAT_VMX_SECONDARY_CTLS] & VMX_SECONDARY_EXEC_ENABLE_EPT ?
-             MSR_VMX_EPT_UC | MSR_VMX_EPT_WB : 0);
-    uint64_t fixed_vmx_ept_vpid = kvm_vmx_ept_vpid & fixed_vmx_ept_mask;
-
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_TRUE_PROCBASED_CTLS,
-                      make_vmx_msr_value(MSR_IA32_VMX_TRUE_PROCBASED_CTLS,
-                                         f[FEAT_VMX_PROCBASED_CTLS]));
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_TRUE_PINBASED_CTLS,
-                      make_vmx_msr_value(MSR_IA32_VMX_TRUE_PINBASED_CTLS,
-                                         f[FEAT_VMX_PINBASED_CTLS]));
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_TRUE_EXIT_CTLS,
-                      make_vmx_msr_value(MSR_IA32_VMX_TRUE_EXIT_CTLS,
-                                         f[FEAT_VMX_EXIT_CTLS]) | fixed_vmx_exit);
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_TRUE_ENTRY_CTLS,
-                      make_vmx_msr_value(MSR_IA32_VMX_TRUE_ENTRY_CTLS,
-                                         f[FEAT_VMX_ENTRY_CTLS]));
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_PROCBASED_CTLS2,
-                      make_vmx_msr_value(MSR_IA32_VMX_PROCBASED_CTLS2,
-                                         f[FEAT_VMX_SECONDARY_CTLS]));
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_EPT_VPID_CAP,
-                      f[FEAT_VMX_EPT_VPID_CAPS] | fixed_vmx_ept_vpid);
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_BASIC,
-                      f[FEAT_VMX_BASIC] | fixed_vmx_basic);
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_MISC,
-                      f[FEAT_VMX_MISC] | fixed_vmx_misc);
-    if (has_msr_vmx_vmfunc) {
-        kvm_msr_entry_add(cpu, MSR_IA32_VMX_VMFUNC, f[FEAT_VMX_VMFUNC]);
-    }
-
-    /*
-     * Just to be safe, write these with constant values.  The CRn_FIXED1
-     * MSRs are generated by KVM based on the vCPU's CPUID.
-     */
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_CR0_FIXED0,
-                      CR0_PE_MASK | CR0_PG_MASK | CR0_NE_MASK);
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_CR4_FIXED0,
-                      CR4_VMXE_MASK);
-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_VMCS_ENUM,
-                      VMCS12_MAX_FIELD_INDEX << 1);
-}
+// END WURIKIJI
 
 static void kvm_msr_entry_add_perf(X86CPU *cpu, FeatureWordArray f)
 {
@@ -2687,6 +2694,8 @@ static void kvm_msr_entry_add_perf(X86CPU *cpu, FeatureWordArray f)
 
 static int kvm_buf_set_msrs(X86CPU *cpu)
 {
+    DPRINTF("kvm vcpu: %d\n", 
+		cpu->kvm_msr_buf->nmsrs);
     int ret = kvm_vcpu_ioctl(CPU(cpu), KVM_SET_MSRS, cpu->kvm_msr_buf);
     if (ret < 0) {
         return ret;
@@ -2698,6 +2707,8 @@ static int kvm_buf_set_msrs(X86CPU *cpu)
                      (uint32_t)e->index, (uint64_t)e->data);
     }
 
+    DPRINTF("returend vcpu: %d, kvm vcpu: %d\n", 
+		ret, cpu->kvm_msr_buf->nmsrs);
     assert(ret == cpu->kvm_msr_buf->nmsrs);
     return 0;
 }
@@ -2730,7 +2741,7 @@ static void kvm_init_msrs(X86CPU *cpu)
      * all kernels with MSR features should have them.
      */
     if (kvm_feature_msrs && cpu_has_vmx(env)) {
-        kvm_msr_entry_add_vmx(cpu, env->features);
+        //kvm_msr_entry_add_vmx(cpu, env->features);
     }
 
     assert(kvm_buf_set_msrs(cpu) == 0);
