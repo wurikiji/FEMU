@@ -3,7 +3,8 @@
         "sqlite3.h": "c",
         "qdev-properties.h": "c",
         "qdev-core.h": "c",
-        "queue.h": "c"
+        "queue.h": "c",
+        "nvme.h": "c"
     },
     "mesonbuild.configureOnOpen": false
 }
