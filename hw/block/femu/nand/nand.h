@@ -1,5 +1,7 @@
 #ifndef __FEMU_NAND_H
 #define __FEMU_NAND_H
+#include <stdint.h>
+#include <stdlib.h>
 
 #define MAX_SUPPORTED_PAGES_PER_BLOCK (512)
 

@@ -34,6 +34,8 @@
 
 #ifndef PQUEUE_H
 #define PQUEUE_H
+#include <stdlib.h>
+#include <stdio.h>
 
 /** priority data type */
 typedef unsigned long long pqueue_pri_t;

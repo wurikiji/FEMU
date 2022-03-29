@@ -2,6 +2,9 @@
 #define __FEMU_MEM_BACKEND
 
 #include <stdint.h>
+#include <stdbool.h>
+#include "qemu/typedefs.h"
+
 
 /* DRAM backend SSD address space */
 typedef struct SsdDramBackend {

@@ -1,6 +1,8 @@
 #ifndef __FEMU_TIMING_MODEL
 #define __FEMU_TIMING_MODEL
 
+#include <stdint.h>
+
 typedef struct FemuCtrl FemuCtrl;
 
 int64_t advance_channel_timestamp(FemuCtrl *n, int ch, uint64_t now, int opcode);
