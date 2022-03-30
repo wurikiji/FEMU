@@ -131,7 +131,7 @@ static void nvme_process_cq_cpl(void *arg, int index_poller)
     int processed = 0;
     int rc;
 
-    if (BBSSD(n)) {
+    if (BBSSD(n) || SAS(n)) {
         rp = n->to_poller[index_poller];
     }
 
@@ -522,7 +522,7 @@ static uint16_t nvme_io_cmd(FemuCtrl *n, NvmeCmd *cmd, NvmeRequest *req)
             return n->ext_ops.io_cmd(n, ns, cmd, req);
         }
 
-        femu_err("%s, NVME_INVALID_OPCODE\n", __func__);
+        femu_err("%s, NVME_INVALID_OPCODE %d\n", __func__, cmd->opcode);
         return NVME_INVALID_OPCODE | NVME_DNR;
     }
 }

@@ -70,7 +70,7 @@ static inline void sas_victim_line_set_pos(void *a, size_t pos) {
   ((struct line *)a)->pos = pos;
 }
 
-static void sas_init_lines(struct ssd *ssd) {
+static void sas_ssd_init_lines(struct ssd *ssd) {
   struct ssdparams *spp = &ssd->sp;
   struct line_mgmt *lm = &ssd->lm;
   struct line *line;
@@ -103,7 +103,7 @@ static void sas_init_lines(struct ssd *ssd) {
   lm->full_line_cnt = 0;
 }
 
-static void sas_init_write_pointer(struct ssd *ssd) {
+static void sas_ssd_init_write_pointer(struct ssd *ssd) {
   struct write_pointer *wpp = &ssd->wp;
   struct line_mgmt *lm = &ssd->lm;
   struct line *curline = NULL;
@@ -218,7 +218,7 @@ static void sas_check_params(struct ssdparams *spp) {
   // ftl_assert(is_power_of_2(spp->nchs));
 }
 
-static void sas_init_params(struct ssdparams *spp) {
+static void sas_ssd_init_params(struct ssdparams *spp) {
   spp->secsz = 512;
   spp->secs_per_pg = 8;
   spp->pgs_per_blk = 256;
@@ -269,7 +269,7 @@ static void sas_init_params(struct ssdparams *spp) {
   sas_check_params(spp);
 }
 
-static void sas_init_nand_page(struct nand_page *pg, struct ssdparams *spp) {
+static void sas_ssd_init_nand_page(struct nand_page *pg, struct ssdparams *spp) {
   pg->nsecs = spp->secs_per_pg;
   pg->sec = g_malloc0(sizeof(nand_sec_status_t) * pg->nsecs);
   for (int i = 0; i < pg->nsecs; i++) {
@@ -278,11 +278,11 @@ static void sas_init_nand_page(struct nand_page *pg, struct ssdparams *spp) {
   pg->status = PG_FREE;
 }
 
-static void sas_init_nand_blk(struct nand_block *blk, struct ssdparams *spp) {
+static void sas_ssd_init_nand_blk(struct nand_block *blk, struct ssdparams *spp) {
   blk->npgs = spp->pgs_per_blk;
   blk->pg = g_malloc0(sizeof(struct nand_page) * blk->npgs);
   for (int i = 0; i < blk->npgs; i++) {
-    sas_init_nand_page(&blk->pg[i], spp);
+    sas_ssd_init_nand_page(&blk->pg[i], spp);
   }
   blk->ipc = 0;
   blk->vpc = 0;
@@ -290,35 +290,35 @@ static void sas_init_nand_blk(struct nand_block *blk, struct ssdparams *spp) {
   blk->wp = 0;
 }
 
-static void sas_init_nand_plane(struct nand_plane *pl, struct ssdparams *spp) {
+static void sas_ssd_init_nand_plane(struct nand_plane *pl, struct ssdparams *spp) {
   pl->nblks = spp->blks_per_pl;
   pl->blk = g_malloc0(sizeof(struct nand_block) * pl->nblks);
   for (int i = 0; i < pl->nblks; i++) {
-    sas_init_nand_blk(&pl->blk[i], spp);
+    sas_ssd_init_nand_blk(&pl->blk[i], spp);
   }
 }
 
-static void sas_init_nand_lun(struct nand_lun *lun, struct ssdparams *spp) {
+static void sas_ssd_init_nand_lun(struct nand_lun *lun, struct ssdparams *spp) {
   lun->npls = spp->pls_per_lun;
   lun->pl = g_malloc0(sizeof(struct nand_plane) * lun->npls);
   for (int i = 0; i < lun->npls; i++) {
-    sas_init_nand_plane(&lun->pl[i], spp);
+    sas_ssd_init_nand_plane(&lun->pl[i], spp);
   }
   lun->next_lun_avail_time = 0;
   lun->busy = false;
 }
 
-static void sas_init_ch(struct ssd_channel *ch, struct ssdparams *spp) {
+static void sas_ssd_init_ch(struct ssd_channel *ch, struct ssdparams *spp) {
   ch->nluns = spp->luns_per_ch;
   ch->lun = g_malloc0(sizeof(struct nand_lun) * ch->nluns);
   for (int i = 0; i < ch->nluns; i++) {
-    sas_init_nand_lun(&ch->lun[i], spp);
+    sas_ssd_init_nand_lun(&ch->lun[i], spp);
   }
   ch->next_ch_avail_time = 0;
   ch->busy = 0;
 }
 
-static void sas_init_maptbl(struct ssd *ssd) {
+static void sas_ssd_init_maptbl(struct ssd *ssd) {
   struct ssdparams *spp = &ssd->sp;
 
   ssd->maptbl = g_malloc0(sizeof(struct ppa) * spp->tt_pgs);
@@ -327,7 +327,7 @@ static void sas_init_maptbl(struct ssd *ssd) {
   }
 }
 
-static void sas_init_rmap(struct ssd *ssd) {
+static void sas_ssd_init_rmap(struct ssd *ssd) {
   struct ssdparams *spp = &ssd->sp;
 
   ssd->rmap = g_malloc0(sizeof(uint64_t) * spp->tt_pgs);
@@ -336,33 +336,33 @@ static void sas_init_rmap(struct ssd *ssd) {
   }
 }
 
-void sas_init(FemuCtrl *n) {
+void sas_ssd_init(FemuCtrl *n) {
   struct ssd *ssd = n->ssd;
   struct ssdparams *spp = &ssd->sp;
 
   ftl_assert(ssd);
 
-  sas_init_params(spp);
+  sas_ssd_init_params(spp);
 
   /* initialize ssd internal layout architecture */
   ssd->ch = g_malloc0(sizeof(struct ssd_channel) * spp->nchs);
   for (int i = 0; i < spp->nchs; i++) {
-    sas_init_ch(&ssd->ch[i], spp);
+    sas_ssd_init_ch(&ssd->ch[i], spp);
   }
 
   /* initialize maptbl */
-  sas_init_maptbl(ssd);
+  sas_ssd_init_maptbl(ssd);
 
   /* initialize rmap */
-  sas_init_rmap(ssd);
+  sas_ssd_init_rmap(ssd);
 
   /* initialize all the lines */
-  sas_init_lines(ssd);
+  sas_ssd_init_lines(ssd);
 
   /* initialize write pointer, this is how we allocate new pages for writes */
-  sas_init_write_pointer(ssd);
+  sas_ssd_init_write_pointer(ssd);
 
-  qemu_thread_create(&ssd->ftl_thread, "FEMU-FTL-Thread", sas_thread, n,
+  qemu_thread_create(&ssd->ftl_thread, "FEMU-SAS-FTL-Thread", sas_thread, n,
                      QEMU_THREAD_JOINABLE);
 }
 

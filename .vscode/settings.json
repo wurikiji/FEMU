@@ -4,7 +4,16 @@
         "qdev-properties.h": "c",
         "qdev-core.h": "c",
         "queue.h": "c",
-        "nvme.h": "c"
+        "nvme.h": "c",
+        "dram.h": "c",
+        "units.h": "c",
+        "rte_ring.h": "c",
+        "pqueue.h": "c",
+        "nand.h": "c",
+        "timing.h": "c",
+        "stdint.h": "c",
+        "cstdint": "c",
+        "typedefs.h": "c"
     },
     "mesonbuild.configureOnOpen": false
 }

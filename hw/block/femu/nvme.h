@@ -1363,7 +1363,7 @@ enum OC20AdminCommands {
 };
 
 static inline bool SAS(FemuCtrl *n) {
-  return (n->femu_mode == FEMU_OCSSD_MODE);
+  return (n->femu_mode == FEMU_SAS_MODE);
 }
 
 static inline bool OCSSD(FemuCtrl *n) {
@@ -1442,6 +1442,7 @@ int nvme_register_ocssd20(FemuCtrl *n);
 int nvme_register_nossd(FemuCtrl *n);
 int nvme_register_bbssd(FemuCtrl *n);
 int nvme_register_znssd(FemuCtrl *n);
+int nvme_register_sas(FemuCtrl *n);
 
 static inline uint64_t ns_blks(NvmeNamespace *ns, uint8_t lba_idx) {
   FemuCtrl *n = ns->ctrl;

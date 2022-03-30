@@ -18,7 +18,7 @@ static void sas_init(FemuCtrl *n, Error **errp) {
   ssd->dataplane_started_ptr = &n->dataplane_started;
   ssd->ssdname = (char *)n->devname;
   femu_debug("Starting FEMU in SaS mode ...\n");
-  ssd_init(n);
+  sas_ssd_init(n);
 }
 
 static void sas_flip(FemuCtrl *n, NvmeCmd *cmd) {

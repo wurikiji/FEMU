@@ -811,13 +811,6 @@ static uint64_t ssd_write(struct ssd *ssd, NvmeRequest *req) {
     swr.stime = req->stime;
     /* get latency statistics */
     curlat = ssd_advance_status(ssd, &ppa, &swr);
-    // [[ SAS ]]
-    // struct sqlite3 *db;
-    // sqlite3_open("./sqlite3_test.db", &db);
-    // sqlite3_exec(db, "create table if not exists a (a int, b int);", NULL,
-    // NULL, NULL); sqlite3_exec(db, "insert into a values (10, 20);", NULL,
-    // NULL, NULL); sqlite3_close(db);
-    // ]] SAS
     maxlat = (curlat > maxlat) ? curlat : maxlat;
   }
 
