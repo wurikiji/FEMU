@@ -13,7 +13,10 @@
         "timing.h": "c",
         "stdint.h": "c",
         "cstdint": "c",
-        "typedefs.h": "c"
+        "typedefs.h": "c",
+        "sas_vfs.h": "c",
+        "sas-vfs.h": "c",
+        "sas-file.h": "c"
     },
     "mesonbuild.configureOnOpen": false
 }

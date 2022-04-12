@@ -344,6 +344,8 @@ enum NvmeIoCommands {
   NVME_CMD_OC_ERASE = 0x90,
   NVME_CMD_OC_WRITE = 0x91,
   NVME_CMD_OC_READ = 0x92,
+  NVME_CMD_SAS_QUERY = 0x81,
+  NVME_CMD_SAS_RESULT = 0x82,
 };
 
 typedef struct NvmeDeleteQ {

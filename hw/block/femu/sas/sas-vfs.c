@@ -2,71 +2,122 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
-#include "sas-file.h"
 #include "sqlite3.h"
+// sas io methods
+int sasFileClose(sqlite3_file* pFile) {
+  // TODO: Flush buffer
+}
 
+int sasFileRead(sqlite3_file* pFile, void* buffer, int iAmt,
+                sqlite3_int64 iOfst) {
+  int rc = SQLITE_OK;
+  sas_file* p = (sas_file*)pFile;
+  sas_real_file* pReal = p->pReal;
+  if (pReal->size <= iOfst + iAmt) {
+    return SQLITE_IOERR_READ;
+  }
+  memcpy(buffer, pReal->data + iOfst, iAmt);
+  return rc;
+}
+
+int sasFileWrite(sqlite3_file* pFile, const void* buffer, int iAmt,
+                 sqlite3_int64 iOfst) {
+  int rc = SQLITE_OK;
+  sas_file* p = (sas_file*)pFile;
+  sas_real_file* pReal = p->pReal;
+  sqlite3_file* pF = pReal->pFile;
+
+  if (pReal->size <= iOfst + iAmt) {
+    pReal->data = (void*)sqlite3_realloc(pReal->data, iOfst + iAmt);
+  }
+
+  memcpy(pReal->data + iOfst, buffer, iAmt);
+  // TODO: NAND OPeration
+  return rc;
+}
+
+int sasFileTruncate(sqlite3_file* pFile, sqlite3_int64 size) {
+  sas_file* p = (sas_file*)pFile;
+  sas_real_file* pReal = p->pReal;
+  // TODO: DISCARD truncated area
+  pReal->size = pReal->size < size ? pReal->size : size;
+  return SQLITE_OK;
+}
+int sasFileSync(sqlite3_file* pFile, int flags) {
+  sas_file* p = (sas_file*)pFile;
+  sas_real_file* pReal = p->pReal;
+  sqlite3_file* pRealFile = pReal->pFile;
+  int rc = SQLITE_OK;
+
+  // TODO: keep db size on reboot
+
+  return rc;
+}
+int sasFileFileSize(sqlite3_file* pFile, sqlite3_int64* pSize) {
+  sas_file* p = (sas_file*)pFile;
+  sas_real_file* pReal = p->pReal;
+  *pSize = pReal->size;
+  return SQLITE_OK;
+}
+int sasFileLock(sqlite3_file* pFile, int flag) { return SQLITE_OK; }
+int sasFileUnlock(sqlite3_file* pFile, int flag) { return SQLITE_OK; }
+int sasFileCheckReservedLock(sqlite3_file* pFile, int* pResOut) {
+  *pResOut = 0;
+  return SQLITE_OK;
+}
+int sasFileFileControl(sqlite3_file* pFile, int op, void* pArg) {
+  if (op == SQLITE_FCNTL_PRAGMA) return SQLITE_NOTFOUND;
+  return SQLITE_OK;
+}
+int sasFileSectorSize(sqlite3_file* pFile) { return SAS_SECTOR_SIZE; }
+int sasFileDeviceCharacteristics(sqlite3_file* pFile) { return 0; }
+
+
+
+
+// sas vfs methods
+// DISCUSSION: do we need to simplify this for SaS?
+// Or, are there any possibility to support multi database situation?
 int sasVfsOpen(sqlite3_vfs *pVfs, const char *zName, sqlite3_file *pFile,
                int flags, int *pOutFlags) {
   sas_vfs *pSasVfs = (sas_vfs *)pVfs;
   sas_file *pF = (sas_file *)pFile;
   sas_real_file *pReal = NULL;
-  int length;
-  int eType = (flags & (SQLITE_OPEN_MAIN_DB | SQLITE_OPEN_MAIN_JOURNAL));
+  int lenFilename;
   int rc = SQLITE_OK;
 
-  if (0 == eType) {
-    // TODO: Temp file
-  }
-
   pF->base.pMethods = &sas_io_methods;
-  pF->eType = eType;
 
-  length = (int)strlen(zName);
+  lenFilename = (int)strlen(zName);
   pReal = pSasVfs->pFileList;
-  for (; pReal && strncmp(pReal->zName, zName, length); pReal = pReal->pNext)
+  for (; pReal != NULL && strncmp(pReal->zName, zName, lenFilename);
+       pReal = pReal->pNext)
     ;
-  if (pReal) {
+  if (pReal != NULL) {
     pF->pReal = pReal;
-    pReal->refCount++;
   } else {
     int real_flag = (flags & ~(SQLITE_OPEN_MAIN_DB)) | SQLITE_OPEN_TEMP_DB;
     sqlite3_int64 size;
-    sqlite3_file *pRealFile;
-    sqlite3_vfs *pParent = pSasVfs->pParent;
-    pReal = (sas_real_file *)sqlite3_malloc(sizeof(*pReal) + pParent->szOsFile);
-    if (!pReal) {
-      rc = SQLITE_NOMEM;
-      sqlite3_free(pReal);
-      return rc;
-    }
-    pRealFile = pReal->pFile;
-    rc = pRealFile->pMethods->xFileSize(pRealFile, &size);
-    if (rc != SQLITE_OK) {
-      pRealFile->pMethods->xClose(pRealFile);
-      sqlite3_free(pReal);
-      return rc;
-    }
 
-    if (size == 0) {
-      // When the file is empty, should we init ?
-    } else {
-      // if the file was already exist,
-      // then get its size information
-      uint32_t zS = 0;
-      pReal->blobSize = (int)size;
-      rc = pRealFile->pMethods->xRead(pRealFile, &zS, 4, 0);
-      pReal->dbSize = zS;
-      if (rc == SQLITE_OK) {
-        rc = pRealFile->pMethods->xRead(pRealFile, &zS, 4, pReal->blobSize - 4);
-        if (zS) {
-          pReal->jnrSize = pReal->blobSize;
-        }
-      }
+    // create real file
+    pReal = (sas_real_file *)sqlite3_malloc(sizeof(sas_real_file));
+    if (pReal == NULL) {
+      return SQLITE_NOMEM;
     }
+    memset(pReal, 0, sizeof(sas_real_file));
+
+    // open file
+    pReal->zName = (char *)sqlite3_malloc(lenFilename);
+    memcpy(pReal->zName, zName, lenFilename);
+    pReal->pFile = pF;
+    // TODO: Allocate FTL based memory offset
+    // TODO: when the file was already created before.
+    // manage file list
     if (rc == SQLITE_OK) {
       pReal->pNext = pSasVfs->pFileList;
-      if (pReal->pNext) {
+      if (pReal->pNext != NULL) {
         pReal->pNext->ppThis = &pReal->pNext;
       }
       pReal->ppThis = &pSasVfs->pFileList;
@@ -76,12 +127,12 @@ int sasVfsOpen(sqlite3_vfs *pVfs, const char *zName, sqlite3_file *pFile,
   return rc;
 }
 
+// TODO: Invalidate FTL MAP
+// TODO: Invalidate memory map
 int sasVfsDelete(sqlite3_vfs *pVfs, const char *zName, int syncDir) {
-  sqlite3_vfs *pParent = ((sas_vfs *)pVfs)->pParent;
   // In FEMU mode, data will be written to memory,
-  // so deletion does not need to wipe data from memory.
+  // so deletion need to wipe data from memory.
   // But this function should handle FTL's invalidation routine.
-  int rc = SQLITE_OK;
   sas_vfs *pSasVfs = (sas_vfs *)pVfs;
   sas_real_file *pReal;
   sqlite3_file *pF;
@@ -91,73 +142,59 @@ int sasVfsDelete(sqlite3_vfs *pVfs, const char *zName, int syncDir) {
   for (; pReal && strncmp(pReal->zName, zName, length); pReal = pReal->pNext)
     ;
   if (pReal) {
-    pF = pReal->pFile;
     // TODO: invalidate FTL map
-    rc = SQLITE_OK;
-    // If it's journal, then remove
-    pReal->jnrSize = 0;
-    // TODO: remove from the list
+    pReal->size = 0;
   }
-  return rc;
+  return SQLITE_OK;
 }
 
-// this function is left for the comparison between off, rbj and wal
 int sasVfsAccess(sqlite3_vfs *pVfs, const char *zName, int flags,
                  int *pResOut) {
   sas_vfs *pSasVfs = (sas_vfs *)pVfs;
   sas_real_file *pReal;
-  int isJournal = 0;
   int length = (int)strlen(zName);
 
-  if (length > 8 && strcmp("-journal", &zName[length - 8]) == 0) {
-    isJournal = 1;
-  }
-
+  // if file exist, then it can be accessed
   pReal = pSasVfs->pFileList;
   for (; pReal && strncmp(pReal->zName, zName, length); pReal = pReal->pNext)
     ;
-  *pResOut = (pReal && (!isJournal || pReal->jnrSize > 0));
+  *pResOut = (pReal != NULL);
   return SQLITE_OK;
 }
+
+// No need to calculate absolute path
 int sasVfsFullPathname(sqlite3_vfs *pVfs, const char *zName, int nOut,
                        char *zOut) {
-  sqlite3_vfs *pParent = ((sas_vfs *)pVfs)->pParent;
-  return pParent->xFullPathname(pParent, zName, nOut, zOut);
+  sqlite3_snprintf(nOut, zOut, "%s", zName);
+  zOut[nOut - 1] = '\0';
+  return SQLITE_OK;
 }
-void *sasVfsDlOpen(sqlite3_vfs *pVfs, const char *zFilename) {
-  sqlite3_vfs *pParent = ((sas_vfs *)pVfs)->pParent;
-  return pParent->xDlOpen(pVfs, zFilename);
-}
+void *sasVfsDlOpen(sqlite3_vfs *pVfs, const char *zFilename) { return 0; }
 void sasVfsDlError(sqlite3_vfs *pVfs, int nByte, char *zErrMsg) {
-  sqlite3_vfs *pParent = ((sas_vfs *)pVfs)->pParent;
-  return pParent->xDlError(pVfs, nByte, zErrMsg);
+  sqlite3_snprintf(nByte, zErrMsg, "Loadable extensions are not supported");
+  zErrMsg[nByte - 1] = '\0';
 }
 void (*sasVfsDlSym(sqlite3_vfs *pVfs, void *pHandle,
                    const char *zSymbol))(void) {
-  sqlite3_vfs *pParent = ((sas_vfs *)pVfs)->pParent;
-  return pParent->xDlSym(pParent, pHandle, zSymbol);
+  return 0;
 }
-void sasVfsDlClose(sqlite3_vfs *pVfs, void *pHandle) {
-  sqlite3_vfs *pParent = ((sas_vfs *)pVfs)->pParent;
-  return pParent->xDlClose(pParent, pHandle);
-}
+void sasVfsDlClose(sqlite3_vfs *pVfs, void *pHandle) { return; }
 int sasVfsRandomness(sqlite3_vfs *pVfs, int nByte, char *zOut) {
-  sqlite3_vfs *pParent = ((sas_vfs *)pVfs)->pParent;
-  return pParent->xRandomness(pParent, nByte, zOut);
+  return SQLITE_OK;
 }
 int sasVfsSleep(sqlite3_vfs *pVfs, int microseconds) {
-  sqlite3_vfs *pParent = ((sas_vfs *)pVfs)->pParent;
-  return pParent->xSleep(pParent, microseconds);
+  sleep(microseconds / 1000000);
+  usleep(microseconds % 1000000);
+  return microseconds;
 }
-int sasVfsCurrentTime(sqlite3_vfs *pVfs, double *pTimeout) {
-  sqlite3_vfs *pParent = ((sas_vfs *)pVfs)->pParent;
-  return pParent->xCurrentTime(pParent, pTimeout);
+int sasVfsCurrentTime(sqlite3_vfs *pVfs, double *pTime) {
+  time_t t = time(0);
+  *pTime = t / 86400.0 + 2440587.5;
+  return SQLITE_OK;
 }
 
 int sas_vfs_register(void) {
-  if (sas_fs.pParent) return SQLITE_OK;
-  sas_fs.pParent = sqlite3_vfs_find(0);
-  sas_fs.base.mxPathname = sas_fs.pParent->mxPathname;
-  sas_fs.base.szOsFile = 4096;
+  sas_fs.base.mxPathname = 18;
+  sas_fs.base.szOsFile = sizeof(sas_file);
   return sqlite3_vfs_register((sqlite3_vfs *)&sas_fs, 0);
 }

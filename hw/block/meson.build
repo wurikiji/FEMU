@@ -22,7 +22,8 @@ softmmu_ss.add(when: 'CONFIG_FEMU_PCI',
     'femu/zns/zns.c', 
     'femu/bbssd/bb.c', 'femu/bbssd/ftl.c', 
     'femu/lib/pqueue.c', 'femu/lib/rte_ring.c', 'femu/backend/dram.c', 
-    'femu/sas/sqlite3.c', 'femu/sas/bb-sas.c', 'femu/sas/sas.c', 'femu/sas/sas-vfs.c'))
+    'femu/sas/sqlite3.c', 'femu/sas/bb-sas.c', 'femu/sas/sas.c', 
+    'femu/sas/sas-vfs.c'))
 
 specific_ss.add(when: 'CONFIG_VIRTIO_BLK', if_true: files('virtio-blk.c'))
 specific_ss.add(when: 'CONFIG_VHOST_USER_BLK', if_true: files('vhost-user-blk.c'))

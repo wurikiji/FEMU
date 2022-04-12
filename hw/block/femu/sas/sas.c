@@ -269,7 +269,8 @@ static void sas_ssd_init_params(struct ssdparams *spp) {
   sas_check_params(spp);
 }
 
-static void sas_ssd_init_nand_page(struct nand_page *pg, struct ssdparams *spp) {
+static void sas_ssd_init_nand_page(struct nand_page *pg,
+                                   struct ssdparams *spp) {
   pg->nsecs = spp->secs_per_pg;
   pg->sec = g_malloc0(sizeof(nand_sec_status_t) * pg->nsecs);
   for (int i = 0; i < pg->nsecs; i++) {
@@ -278,7 +279,8 @@ static void sas_ssd_init_nand_page(struct nand_page *pg, struct ssdparams *spp) 
   pg->status = PG_FREE;
 }
 
-static void sas_ssd_init_nand_blk(struct nand_block *blk, struct ssdparams *spp) {
+static void sas_ssd_init_nand_blk(struct nand_block *blk,
+                                  struct ssdparams *spp) {
   blk->npgs = spp->pgs_per_blk;
   blk->pg = g_malloc0(sizeof(struct nand_page) * blk->npgs);
   for (int i = 0; i < blk->npgs; i++) {
@@ -290,7 +292,8 @@ static void sas_ssd_init_nand_blk(struct nand_block *blk, struct ssdparams *spp)
   blk->wp = 0;
 }
 
-static void sas_ssd_init_nand_plane(struct nand_plane *pl, struct ssdparams *spp) {
+static void sas_ssd_init_nand_plane(struct nand_plane *pl,
+                                    struct ssdparams *spp) {
   pl->nblks = spp->blks_per_pl;
   pl->blk = g_malloc0(sizeof(struct nand_block) * pl->nblks);
   for (int i = 0; i < pl->nblks; i++) {
@@ -845,15 +848,25 @@ static void *sas_thread(void *arg) {
       ftl_assert(req);
       switch (req->cmd.opcode) {
         case NVME_CMD_WRITE:
+          femu_log("got nvme sas sqlite query command\n");
           lat = sas_write(ssd, req);
           break;
         case NVME_CMD_READ:
+          femu_log("got nvme sas sqlite read command\n");
           lat = sas_read(ssd, req);
           break;
         case NVME_CMD_DSM:
+          femu_log("got nvme sas dsm command\n");
           lat = 0;
           break;
+        case NVME_CMD_SAS_QUERY:
+          femu_log("got nvme sas query command\n");
+          break;
+        case NVME_CMD_SAS_RESULT:
+          femu_log("got nvme sas result command\n");
+          break;
         default:
+          femu_log("got nvme sas other command %d\n", req->cmd.opcode);
             // ftl_err("FTL received unkown request type, ERROR\n");
             ;
       }
